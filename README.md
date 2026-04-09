@@ -25,8 +25,8 @@ segurança na manipulação de dados sensíveis (LGPD).
 
 ## 🛠️ Tecnologias Utilizadas
 
--   HTML5 / JavaScript (Vanilla JS)
--   Tailwind CSS (CDN)
+-   HTML5 / JavaScript 
+-   Tailwind CSS 
 -   Chart.js
 -   FontAwesome
 
@@ -46,8 +46,8 @@ Abra o arquivo `index.html` no navegador.
 
 ### 2. Importar dados
 
-1.  Exporte o CSV no Digisac
-2.  Clique em **Gerar Gráfico de barras TMA**
+1.  Exporte o CSV 
+2.  Clique em **Carregar dados (.csv)**
 3.  Selecione o arquivo
 4.  Dashboard será preenchido automaticamente
 
@@ -58,9 +58,7 @@ Abra o arquivo `index.html` no navegador.
 -   Separador: `;`
 -   Colunas obrigatórias:
 
-```{=html}
-<!-- -->
-```
+
     Nome
     Atendente
     Departamento
