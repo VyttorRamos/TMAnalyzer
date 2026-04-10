@@ -126,7 +126,9 @@ function carregarCSV(e) {
             select.appendChild(new Option(nome, nome));
         });
 
-        document.getElementById('dashboardArea').classList.remove('hidden');
+        document.getElementById('navMenu').classList.remove('hidden');
+        mudarAba('dashboard');
+        
         aplicarFiltros();
     };
     reader.readAsText(file);
@@ -229,6 +231,108 @@ function desenharGraficos() {
             }]
         },
         options: { responsive: true, maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+    });
+}
+
+// abas
+function mudarAba(aba) {
+    const dashArea = document.getElementById('dashboardArea');
+    const rankArea = document.getElementById('rankingArea');
+    const btnDash = document.getElementById('btnAbaDashboard');
+    const btnRank = document.getElementById('btnAbaRanking');
+
+    if (aba === 'dashboard') {
+        dashArea.classList.remove('hidden');
+        rankArea.classList.add('hidden');
+        
+        btnDash.className = "px-4 py-2 rounded-md bg-white shadow-sm text-primary font-bold transition-all";
+        btnRank.className = "px-4 py-2 rounded-md text-slate-500 hover:text-slate-700 font-medium transition-all";
+    } else {
+        dashArea.classList.add('hidden');
+        rankArea.classList.remove('hidden');
+        
+        btnRank.className = "px-4 py-2 rounded-md bg-white shadow-sm text-yellow-600 font-bold transition-all";
+        btnDash.className = "px-4 py-2 rounded-md text-slate-500 hover:text-slate-700 font-medium transition-all";
+        
+        calcularEExibirRanking();
+    }
+}
+
+// ranking
+function calcularEExibirRanking() {
+    const pontuacoes = {};
+
+    dadosGlobais.forEach(d => {
+        // ignora os chamados sem atendente
+        if (d.atendente === "Não atribuído") return;
+
+        if (!pontuacoes[d.atendente]) {
+            pontuacoes[d.atendente] = { pontosTempo: 0, pontosQtd: 0, total: 0, qtdChamados: 0, minTotais: 0 };
+        }
+
+        // pontuação por qntd (- peso)- 10 pontos fixos por chamado
+        pontuacoes[d.atendente].pontosQtd += 10;
+        pontuacoes[d.atendente].qtdChamados += 1;
+        pontuacoes[d.atendente].minTotais += d.minutos;
+
+        // pontuação por tempo (+ peso) - começa em 50 pts, perde 1 pt por minuto demorado se o chamado durar mais de 50 minutos, a pontuação de tempo é 0
+        let ptsTempo = Math.max(0, 50 - d.minutos);
+        pontuacoes[d.atendente].pontosTempo += ptsTempo;
+    });
+
+    const rankingArray = Object.keys(pontuacoes).map(nome => {
+        const p = pontuacoes[nome];
+        p.total = Math.round(p.pontosTempo + p.pontosQtd);
+        p.tmaGlobal = formTempo(p.minTotais / p.qtdChamados);
+        return { nome, ...p };
+    });
+
+    rankingArray.sort((a, b) => b.total - a.total);
+    renderizarRanking(rankingArray);
+}
+
+function renderizarRanking(ranking) {
+    const container = document.getElementById('listaRanking');
+    container.innerHTML = '';
+
+    ranking.forEach((user, index) => {
+        let corPosicao = "bg-slate-100 text-slate-600";
+        let icone = `<span class="text-2xl font-black">#${index + 1}</span>`;
+
+        if (index === 0) {
+            corPosicao = "bg-yellow-100 border-yellow-300 text-yellow-700 shadow-md transform scale-[1.02]";
+            icone = `<i class="fa-solid fa-trophy text-3xl text-yellow-500"></i>`;
+        } else if (index === 1) {
+            corPosicao = "bg-gray-100 border-gray-300 text-gray-700 shadow-sm";
+            icone = `<i class="fa-solid fa-medal text-3xl text-gray-400"></i>`;
+        } else if (index === 2) {
+            corPosicao = "bg-orange-50 border-orange-200 text-orange-800 shadow-sm";
+            icone = `<i class="fa-solid fa-medal text-3xl text-orange-400"></i>`;
+        }
+
+        container.innerHTML += `
+            <div class="flex flex-col md:flex-row items-center justify-between p-5 border rounded-xl transition-all ${corPosicao}">
+                <div class="flex items-center gap-6 w-full md:w-auto">
+                    <div class="w-12 flex justify-center">
+                        ${icone}
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold">${user.nome}</h3>
+                        <div class="text-sm opacity-80 mt-1 flex gap-3">
+                            <span><i class="fa-solid fa-ticket mr-1"></i> ${user.qtdChamados} chamados</span>
+                            <span><i class="fa-solid fa-stopwatch mr-1"></i> TMA: ${user.tmaGlobal}</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="mt-4 md:mt-0 text-right w-full md:w-auto flex flex-row md:flex-col justify-between md:justify-end items-center md:items-end">
+                    <div class="text-3xl font-black">${user.total.toLocaleString()} pts</div>
+                    <div class="text-xs font-semibold opacity-70 uppercase tracking-wide">
+                        Agilidade: ${Math.round(user.pontosTempo)} | Volume: ${user.pontosQtd}
+                    </div>
+                </div>
+            </div>
+        `;
     });
 }
 
