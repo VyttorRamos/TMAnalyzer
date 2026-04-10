@@ -4,8 +4,7 @@ let chartSeveridadeInstancia = null;
 
 const REGRAS = { NORMAL: 15, ATENCAO: 40 };
 
-// funções
-
+// funções aux
 function convMinutos(tempo) {
     if (!tempo) return 0;
     const [h, m, s] = tempo.split(':').map(Number);
@@ -26,35 +25,55 @@ function classificar(min) {
     return {id: 'critico', classe: "bg-red-100 text-red-800 border-red-200", icone: "fa-fire text-red-500", label: "Crítico"};
 }
 
-// processa planilha
+function parseCSV(texto) {
+    const arr = [];
+    let quote = false;
+    let row = 0, col = 0;
+    
+    for (let c = 0; c < texto.length; c++) {
+        let cc = texto[c], nc = texto[c+1];
+        arr[row] = arr[row] || [];
+        arr[row][col] = arr[row][col] || '';
 
+        if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
+        if (cc === '"') { quote = !quote; continue; }
+        if (cc === ';' && !quote) { ++col; continue; }
+        if (cc === '\r' && nc === '\n' && !quote) { ++row; col = 0; ++c; continue; }
+        if (cc === '\n' && !quote) { ++row; col = 0; continue; }
+        
+        arr[row][col] += cc;
+    }
+    
+    return arr.filter(r => r.join('').trim() !== '');
+}
+
+// processa planilha
 function carregarCSV(e) {
     const file = e.target.files[0];
     if (!file) return;
 
     const reader = new FileReader();
     reader.onload = function(e) {
-        const linhas = e.target.result.split('\n');
+        const linhas = parseCSV(e.target.result);
         dadosGlobais = []; 
         let datasEncontradas = new Set(); 
 
-        const header = linhas[0].split(';');
+        if (linhas.length < 2) return alert("O arquivo parece estar vazio ou não contém dados suficientes.");
+
+        const header = linhas[0];
         const idx = {
             tempo: header.indexOf("Tempo total de atendimento"), cliente: header.indexOf("Nome"),
             atendente: header.indexOf("Atendente"), resumo: header.indexOf("Resumo do chamado"),
             depto: header.indexOf("Departamento"), inicio: header.indexOf("Data de início"), fim: header.indexOf("Data de encerramento")
         };
 
-        if (idx.tempo === -1) return alert("Erro: Coluna de tempo não encontrada.");
+        if (idx.tempo === -1) return alert("Erro: Coluna de 'Tempo total de atendimento' não encontrada.");
 
         for (let i = 1; i < linhas.length; i++) {
-            const col = linhas[i].split(';');
+            const col = linhas[i]; 
+            
             if (col.length <= idx.tempo) continue;
 
-            // filtro para pegar apenas o departamento "Suporte"
-            if (idx.depto !== -1 && col[idx.depto]?.trim().toLowerCase() !== "suporte") continue;
-            
-            // pegar as datas
             if (idx.inicio !== -1 && idx.fim !== -1) {
                 const inicio = col[idx.inicio]?.trim();
                 const fim = col[idx.fim]?.trim();
@@ -95,7 +114,6 @@ function carregarCSV(e) {
             const strMin = formatarD(dataMin);
             const strMax = formatarD(dataMax);
             
-            // se as datas forem iguais mostra um dia só ou mostra o range
             textoPeriodo = (strMin === strMax) ? strMin : `${strMin} até ${strMax}`;
         }
 
@@ -115,7 +133,6 @@ function carregarCSV(e) {
 }
 
 // filtros
-
 function aplicarFiltros() {
     const atendente = document.getElementById('filtroAtendente').value;
     const qtd = document.getElementById('filtroQuantidade').value;
