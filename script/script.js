@@ -25,6 +25,11 @@ function classificar(min) {
     return {id: 'critico', classe: "bg-red-100 text-red-800 border-red-200", icone: "fa-fire text-red-500", label: "Crítico"};
 }
 
+// verifica se a documentação é válida, menor de 5 letras e diferente do padrão
+function docValida(texto) {
+    return texto && texto !== "Sem resumo detalhado" && texto.trim().length > 5;
+}
+
 function parseCSV(texto) {
     const arr = [];
     let quote = false;
@@ -80,8 +85,7 @@ function carregarCSV(e) {
                 
                 if (inicio && fim) {
                     const dataIn = inicio.split(' ')[0];
-                    if (dataIn !== fim.split(' ')[0]) continue; // verifica se terminou no mesmo dia
-                    
+                    if (dataIn !== fim.split(' ')[0]) continue; 
                     datasEncontradas.add(dataIn); 
                 }
             }
@@ -97,7 +101,7 @@ function carregarCSV(e) {
             });
         }
 
-        if (dadosGlobais.length === 0) return alert("Nenhum atendimento de suporte concluído no mesmo dia foi encontrado.");
+        if (dadosGlobais.length === 0) return alert("Nenhum atendimento válido encontrado.");
 
         let textoPeriodo = "Período não identificado";
         if (datasEncontradas.size > 0) {
@@ -105,15 +109,12 @@ function carregarCSV(e) {
                 const partes = d.split('/');
                 return new Date(`${partes[2]}-${partes[1]}-${partes[0]}T12:00:00`); 
             });
-            
             const dataMin = new Date(Math.min(...datasObj));
             const dataMax = new Date(Math.max(...datasObj));
-            
             const formatarD = d => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
             
             const strMin = formatarD(dataMin);
             const strMax = formatarD(dataMax);
-            
             textoPeriodo = (strMin === strMax) ? strMin : `${strMin} até ${strMax}`;
         }
 
@@ -134,7 +135,7 @@ function carregarCSV(e) {
     reader.readAsText(file);
 }
 
-// filtros
+// filtros 
 function aplicarFiltros() {
     const atendente = document.getElementById('filtroAtendente').value;
     const qtd = document.getElementById('filtroQuantidade').value;
@@ -184,12 +185,11 @@ function aplicarFiltros() {
         `;
     });
 
-    // gráficos
     document.getElementById('areaGraficos').style.display = (atendente === "Todos") ? "grid" : "none";
     if(atendente === "Todos") desenharGraficos();
 }
 
-// gráficos
+// gráficos 
 function desenharGraficos() {
     const agg = {};
     dadosGlobais.forEach(d => {
@@ -234,55 +234,102 @@ function desenharGraficos() {
     });
 }
 
-// abas
-function mudarAba(aba) {
-    const dashArea = document.getElementById('dashboardArea');
-    const rankArea = document.getElementById('rankingArea');
-    const btnDash = document.getElementById('btnAbaDashboard');
-    const btnRank = document.getElementById('btnAbaRanking');
+//abas
+function mudarAba(abaDestino) {
+    ['dashboard', 'documentacao', 'ranking'].forEach(aba => {
+        document.getElementById(aba + 'Area').classList.add('hidden');
+        const btn = document.getElementById('btnAba' + aba.charAt(0).toUpperCase() + aba.slice(1));
+        btn.className = "px-4 py-2 rounded-md text-slate-500 hover:text-slate-700 font-medium transition-all";
+    });
 
-    if (aba === 'dashboard') {
-        dashArea.classList.remove('hidden');
-        rankArea.classList.add('hidden');
-        
-        btnDash.className = "px-4 py-2 rounded-md bg-white shadow-sm text-primary font-bold transition-all";
-        btnRank.className = "px-4 py-2 rounded-md text-slate-500 hover:text-slate-700 font-medium transition-all";
-    } else {
-        dashArea.classList.add('hidden');
-        rankArea.classList.remove('hidden');
-        
-        btnRank.className = "px-4 py-2 rounded-md bg-white shadow-sm text-yellow-600 font-bold transition-all";
-        btnDash.className = "px-4 py-2 rounded-md text-slate-500 hover:text-slate-700 font-medium transition-all";
-        
+    document.getElementById(abaDestino + 'Area').classList.remove('hidden');
+    const btnAtivo = document.getElementById('btnAba' + abaDestino.charAt(0).toUpperCase() + abaDestino.slice(1));
+
+    if (abaDestino === 'dashboard') {
+        btnAtivo.className = "px-4 py-2 rounded-md bg-white shadow-sm text-primary font-bold transition-all";
+    } else if (abaDestino === 'documentacao') {
+        btnAtivo.className = "px-4 py-2 rounded-md bg-white shadow-sm text-emerald-600 font-bold transition-all";
+        calcularEExibirDocs();
+    } else if (abaDestino === 'ranking') {
+        btnAtivo.className = "px-4 py-2 rounded-md bg-white shadow-sm text-yellow-600 font-bold transition-all";
         calcularEExibirRanking();
     }
 }
 
+function calcularEExibirDocs() {
+    let docsOk = 0;
+    let docsNok = 0;
+    const listaNok = [];
+
+    dadosGlobais.forEach(d => {
+        if (d.atendente === "Não atribuído") return; // Ignora fantasmas
+
+        if (docValida(d.resumo)) {
+            docsOk++;
+        } else {
+            docsNok++;
+            listaNok.push(d);
+        }
+    });
+
+    document.getElementById('kpiDocTotal').innerText = docsOk + docsNok;
+    document.getElementById('kpiDocOk').innerText = docsOk;
+    document.getElementById('kpiDocNok').innerText = docsNok;
+
+    const container = document.getElementById('listaDocsInvalidos');
+    container.innerHTML = '';
+
+    if (listaNok.length === 0) {
+        container.innerHTML = `<div class="text-center text-slate-500 py-4"><i class="fa-solid fa-party-horn text-2xl mb-2 block"></i> Parabéns! Todos os chamados possuem documentação válida.</div>`;
+        return;
+    }
+
+    listaNok.sort((a, b) => b.minutos - a.minutos);
+
+    listaNok.forEach((item) => {
+        container.innerHTML += `
+            <div class="flex items-start gap-4 p-4 border rounded-xl bg-red-50 border-red-100">
+                <div class="bg-white p-3 rounded-full shadow-sm text-red-500">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div class="w-full">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="font-bold text-slate-800">${item.atendente}</span>
+                        <span class="text-xs px-2 py-0.5 rounded border border-red-200 bg-white text-red-600 font-semibold uppercase tracking-wide">Pendente</span>
+                    </div>
+                    <div class="text-sm font-medium opacity-70"><i class="fa-regular fa-user mr-1"></i> Cliente: ${item.cliente} &nbsp;|&nbsp; <i class="fa-regular fa-clock mr-1"></i> TMA: ${formTempo(item.minutos)}</div>
+                    <div class="text-sm mt-2 p-2 bg-white rounded border border-red-100 text-red-800 italic">"${item.resumo}"</div>
+                </div>
+            </div>
+        `;
+    });
+}
 // ranking
 function calcularEExibirRanking() {
     const pontuacoes = {};
 
     dadosGlobais.forEach(d => {
-        // ignora os chamados sem atendente
         if (d.atendente === "Não atribuído") return;
 
         if (!pontuacoes[d.atendente]) {
-            pontuacoes[d.atendente] = { pontosTempo: 0, pontosQtd: 0, total: 0, qtdChamados: 0, minTotais: 0 };
+            pontuacoes[d.atendente] = { pontosTempo: 0, pontosDoc: 0, total: 0, qtdChamados: 0, chamadosDoc: 0, minTotais: 0 };
         }
 
-        // pontuação por qntd (- peso)- 10 pontos fixos por chamado
-        pontuacoes[d.atendente].pontosQtd += 10;
+        if (docValida(d.resumo)) {
+            pontuacoes[d.atendente].pontosDoc += 10;
+            pontuacoes[d.atendente].chamadosDoc += 1;
+        }
+
         pontuacoes[d.atendente].qtdChamados += 1;
         pontuacoes[d.atendente].minTotais += d.minutos;
 
-        // pontuação por tempo (+ peso) - começa em 50 pts, perde 1 pt por minuto demorado se o chamado durar mais de 50 minutos, a pontuação de tempo é 0
         let ptsTempo = Math.max(0, 50 - d.minutos);
         pontuacoes[d.atendente].pontosTempo += ptsTempo;
     });
 
     const rankingArray = Object.keys(pontuacoes).map(nome => {
         const p = pontuacoes[nome];
-        p.total = Math.round(p.pontosTempo + p.pontosQtd);
+        p.total = Math.round(p.pontosTempo + p.pontosDoc);
         p.tmaGlobal = formTempo(p.minTotais / p.qtdChamados);
         return { nome, ...p };
     });
@@ -319,8 +366,9 @@ function renderizarRanking(ranking) {
                     <div>
                         <h3 class="text-xl font-bold">${user.nome}</h3>
                         <div class="text-sm opacity-80 mt-1 flex gap-3">
-                            <span><i class="fa-solid fa-ticket mr-1"></i> ${user.qtdChamados} chamados</span>
-                            <span><i class="fa-solid fa-stopwatch mr-1"></i> TMA: ${user.tmaGlobal}</span>
+                            <span title="Total de Chamados"><i class="fa-solid fa-ticket mr-1"></i> ${user.qtdChamados}</span>
+                            <span title="Chamados Documentados corretamente"><i class="fa-solid fa-file-signature mr-1"></i> ${user.chamadosDoc}/${user.qtdChamados} Docs</span>
+                            <span title="Tempo Médio de Atendimento"><i class="fa-solid fa-stopwatch mr-1"></i> TMA: ${user.tmaGlobal}</span>
                         </div>
                     </div>
                 </div>
@@ -328,11 +376,22 @@ function renderizarRanking(ranking) {
                 <div class="mt-4 md:mt-0 text-right w-full md:w-auto flex flex-row md:flex-col justify-between md:justify-end items-center md:items-end">
                     <div class="text-3xl font-black">${user.total.toLocaleString()} pts</div>
                     <div class="text-xs font-semibold opacity-70 uppercase tracking-wide">
-                        Agilidade: ${Math.round(user.pontosTempo)} | Volume: ${user.pontosQtd}
+                        Agilidade: ${Math.round(user.pontosTempo)} | Doc: ${user.pontosDoc}
                     </div>
                 </div>
             </div>
         `;
+    });
+}
+
+function baixarRanking() {
+    const areaPrint = document.getElementById('areaPrintRanking');
+    
+    html2canvas(areaPrint, { backgroundColor: '#ffffff', scale: 2 }).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'Ranking-TMAnalyzer.png';
+        link.href = canvas.toDataURL('image/png');
+        link.click();
     });
 }
 
